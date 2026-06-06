@@ -205,10 +205,10 @@ export async function analyzeDocuments(parts: Part[]): Promise<AnalysisResult> {
     currentKeyIndex = Math.floor(Math.random() * ROTATING_API_KEYS.length);
   }
   // Try models in order until one succeeds.
-  // We will use the latest 2.0 series as requested.
+  // NOTE: Gemini 2.0 was fully shut down on June 1, 2026. Use 3.x series.
   const MODELS = [
-    "gemini-2.0-flash", // Fast, clever, standard current model
-    "gemini-2.0-pro-exp", // Pro version fallback
+    "gemini-3.5-flash",       // Primary: fast, multimodal, generous free tier
+    "gemini-3.1-flash-lite",  // Fallback: ultra-light quota usage
   ];
 
   let lastError: Error | null = null;
