@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { AnalysisResult } from "@/lib/types";
 
 
@@ -159,33 +159,27 @@ Instruksi Output:
 * Jangan membuat asumsi tanpa bukti
 
 JSON harus bersih, terstruktur, dan siap digunakan langsung untuk response API.`;
-let openai: OpenAI;
+
+let ai: GoogleGenAI;
 
 export async function analyzeDocuments(extractedText: string): Promise<AnalysisResult> {
-  if (!openai) {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || "dummy",
+  if (!ai) {
+    ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY || "dummy",
     });
   }
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    temperature: 0.1,
-    max_tokens: 8192,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: SYSTEM_PROMPT,
-      },
-      {
-        role: "user",
-        content: `Berikut adalah data akuntansi / laporan keuangan yang perlu dianalisis:\n\n${extractedText}`,
-      },
-    ],
+  const response = await ai.models.generateContent({
+    model: "gemini-3.5-flash",
+    contents: `Berikut adalah data akuntansi / laporan keuangan yang perlu dianalisis:\n\n${extractedText}`,
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      temperature: 0.1,
+      responseMimeType: "application/json",
+    },
   });
 
-  const content = completion.choices[0]?.message?.content;
+  const content = response.text;
   if (!content) {
     throw new Error("AI did not return a response");
   }
