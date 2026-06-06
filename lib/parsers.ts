@@ -33,7 +33,8 @@ function parseBinaryAsInlineData(
 // ── DOCX Parser — extract text via mammoth ────────────────────────────────────
 async function parseDocx(buffer: Buffer, fileName: string): Promise<ParsedFile> {
   try {
-    const mammoth = await import("mammoth");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mammoth = require("mammoth") as typeof import("mammoth");
     const result = await mammoth.extractRawText({ buffer });
     const text = result.value?.trim() || "(Dokumen Word kosong atau tidak dapat dibaca)";
     return {
