@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // ── Validate with Zod ───────────────────────────────────────────────────
     const parsed = RegisterSchema.safeParse(body);
     if (!parsed.success) {
-      const firstError = parsed.error.errors[0];
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
         { error: firstError?.message ?? "Validasi gagal" },
         { status: 400 }
