@@ -1,12 +1,12 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
+  // No PrismaAdapter — we use JWT sessions (stateless).
+  // Mixing PrismaAdapter with strategy:"jwt" causes OAuthCallback errors.
 
   providers: [
     // ── Google OAuth ─────────────────────────────────────────────────
@@ -69,8 +69,7 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: "jwt",
-    // Persistent login — 30 days
-    maxAge: 30 * 24 * 60 * 60,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60,
   },
 
@@ -92,12 +91,28 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
-    async signIn({ user, account }) {
-      // Allow all users — remove the previous email whitelist restriction.
-      // For Google OAuth users, ensure they exist in the database.
-      if (account?.provider === "google") {
-        // The PrismaAdapter handles upsert automatically for OAuth users.
-        return true;
+    async signIn({ user, account, profile }) {
+      // For Google OAuth — upsert the user into our database
+      if (account?.provider === "google" && profile?.email) {
+        try {
+          const existingUser = await prisma.user.findUnique({
+            where: { email: profile.email },
+          });
+
+          if (!existingUser) {
+            await prisma.user.create({
+              data: {
+                email: profile.email,
+                name: profile.name ?? user.name ?? null,
+                image: (profile as any).picture ?? user.image ?? null,
+                role: "user",
+              },
+            });
+          }
+        } catch (error) {
+          console.error("[AUTH] Error upserting Google user:", error);
+          return false;
+        }
       }
       return true;
     },
@@ -113,25 +128,29 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
-    async jwt({ token, user, trigger, session }) {
-      if (user) {
-        token.sub = user.id;
-        token.role = (user as any).role;
-
-        // Fetch extended fields on first login
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: {
-            businessName: true,
-            companyName: true,
-            phoneNumber: true,
-            role: true,
-          },
-        });
-        token.businessName = dbUser?.businessName;
-        token.companyName = dbUser?.companyName;
-        token.phoneNumber = dbUser?.phoneNumber;
-        token.role = dbUser?.role;
+    async jwt({ token, user, account, trigger, session }) {
+      // On first sign-in (user object is present), populate token from DB
+      if (user || account) {
+        const email = user?.email ?? token.email;
+        if (email) {
+          const dbUser = await prisma.user.findUnique({
+            where: { email },
+            select: {
+              id: true,
+              businessName: true,
+              companyName: true,
+              phoneNumber: true,
+              role: true,
+            },
+          });
+          if (dbUser) {
+            token.sub = dbUser.id;
+            token.role = dbUser.role;
+            token.businessName = dbUser.businessName;
+            token.companyName = dbUser.companyName;
+            token.phoneNumber = dbUser.phoneNumber;
+          }
+        }
       }
 
       // Allow session update from client
@@ -147,7 +166,7 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user }) {
       console.log(`[AUTH] User signed in: ${user.email}`);
     },
-    async signOut({ session, token }) {
+    async signOut({ token }) {
       console.log(`[AUTH] User signed out: ${(token as any)?.email}`);
     },
   },
