@@ -56,7 +56,7 @@ async function downscaleImage(file: File, maxWidth = 1920, maxHeight = 1080): Pr
 
         canvas.toBlob((blob) => {
           if (blob) {
-            resolve(new File([blob], file.name, { type: file.type, lastModified: Date.now() }));
+            resolve(new window.File([blob], file.name, { type: file.type, lastModified: Date.now() }));
           } else {
             resolve(file); // Fallback if canvas fails
           }
