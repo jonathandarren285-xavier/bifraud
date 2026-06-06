@@ -8,6 +8,10 @@
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
+  min-height: 100dvh;
+}
+body {
+  min-height: 100dvh;
 }
 
 /* Custom scrollbar */

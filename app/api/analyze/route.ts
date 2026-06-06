@@ -5,7 +5,7 @@ import { parseFile, combineIntoParts } from "@/lib/parsers";
 import { analyzeDocuments } from "@/lib/ai";
 import { prisma } from "@/lib/db";
 
-export const maxDuration = 120; // 2 minutes for AI analysis
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {

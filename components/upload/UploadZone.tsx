@@ -33,6 +33,43 @@ function formatBytes(bytes: number) {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+async function downscaleImage(file: File, maxWidth = 1920, maxHeight = 1080): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+  
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width *= ratio;
+          height *= ratio;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name, { type: file.type, lastModified: Date.now() }));
+          } else {
+            resolve(file); // Fallback if canvas fails
+          }
+        }, file.type, 0.85); // 85% quality to save space
+      };
+      img.onerror = () => resolve(file);
+      if (typeof e.target?.result === "string") img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
 interface UploadZoneProps {
   files: File[];
   onFilesChange: (files: File[]) => void;
@@ -42,8 +79,13 @@ export function UploadZone({ files, onFilesChange }: UploadZoneProps) {
   const { t } = useLanguage();
 
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      const combined = [...files, ...acceptedFiles];
+    async (acceptedFiles: File[]) => {
+      // Process images down to 1080p max to save memory on mobile devices
+      const processedFiles = await Promise.all(
+        acceptedFiles.map((file) => downscaleImage(file))
+      );
+
+      const combined = [...files, ...processedFiles];
       // Deduplicate by name
       const unique = combined.filter(
         (f, idx, arr) => arr.findIndex((x) => x.name === f.name) === idx
