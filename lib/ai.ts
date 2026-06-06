@@ -204,11 +204,12 @@ export async function analyzeDocuments(parts: Part[]): Promise<AnalysisResult> {
   if (currentKeyIndex === -1) {
     currentKeyIndex = Math.floor(Math.random() * ROTATING_API_KEYS.length);
   }
-  // Try models in order until one succeeds
+  // Try models in order until one succeeds.
+  // We use 1.5-flash as the primary workhorse because its free tier is very generous (1500 per day).
   const MODELS = [
-    "gemini-2.5-flash-preview-05-20",
+    "gemini-1.5-flash",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-8b",
   ];
 
   let lastError: Error | null = null;
