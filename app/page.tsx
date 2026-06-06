@@ -76,7 +76,7 @@ export default function HomePage() {
           <div className="mb-10 sm:mb-14 text-center space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold text-amber-400">
               <Sparkles className="h-3.5 w-3.5" />
-              Powered by OpenAI GPT-4o
+              Powered by Gemini 3.5 Flash
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white text-glow">
               {t.appTagline}
@@ -183,7 +183,7 @@ export default function HomePage() {
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { title: "7 Kategori Fraud", desc: "Transaksi mencurigakan, manipulasi laporan, fraud pajak, dan lebih banyak lagi" },
-              { title: "GPT-4o Analysis", desc: "Analisis mendalam berbasis standar audit profesional dan prinsip akuntansi" },
+              { title: "Gemini 3.5 Flash Analysis", desc: "Analisis mendalam berbasis standar audit profesional dan prinsip akuntansi" },
               { title: "Laporan Terstruktur", desc: "JSON terstruktur dengan tingkat risiko, justifikasi, dan rekomendasi audit" },
             ].map((item, i) => (
               <div key={i} className="glass rounded-2xl p-5 space-y-2">

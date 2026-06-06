@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call GPT-4o
+    // Call Gemini
     const analysisResult = await analyzeDocuments(combinedText);
 
     // Save to database

@@ -12,7 +12,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "BiFraud — Deteksi Fraud Keuangan Berbasis AI",
   description:
-    "Platform deteksi fraud keuangan berbasis AI. Unggah jurnal akuntansi dan laporan keuangan untuk analisis otomatis oleh GPT-4o.",
+    "Platform deteksi fraud keuangan berbasis AI. Unggah jurnal akuntansi dan laporan keuangan untuk analisis otomatis oleh Gemini 3.5 Flash.",
   keywords: ["fraud detection", "deteksi fraud", "akuntansi", "audit", "AI", "keuangan"],
   authors: [{ name: "BiFraud Team" }],
   openGraph: {
