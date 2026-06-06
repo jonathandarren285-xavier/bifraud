@@ -18,6 +18,7 @@ export interface FraudFinding {
 
 export interface FinalSummary {
   overall_fraud_risk_score: string;
+  overall_risk_percentage?: number;
   key_red_flags: string[];
   priority_actions_for_management: string[];
   auditor_recommendation: string;

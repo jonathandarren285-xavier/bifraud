@@ -1,25 +1,49 @@
 import * as XLSX from "xlsx";
+import type { Part } from "@google/genai";
 
+// ── Types ──────────────────────────────────────────────────────────────────────
 export interface ParsedFile {
   name: string;
-  content: string;
+  parts: Part[]; // One or more Gemini content parts for this file
 }
 
-// ── PDF Parser ─────────────────────────────────────────────────────────────────
-async function parsePdf(buffer: Buffer, fileName: string): Promise<ParsedFile> {
+// ── PDF / Image parser — native Gemini inlineData ─────────────────────────────
+function parseBinaryAsInlineData(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string
+): ParsedFile {
+  const base64 = buffer.toString("base64");
+  return {
+    name: fileName,
+    parts: [
+      {
+        text: `\n=== DOKUMEN: ${fileName} ===\n`,
+      },
+      {
+        inlineData: {
+          mimeType,
+          data: base64,
+        },
+      },
+    ],
+  };
+}
+
+// ── DOCX Parser — extract text via mammoth ────────────────────────────────────
+async function parseDocx(buffer: Buffer, fileName: string): Promise<ParsedFile> {
   try {
-    // Dynamic import to avoid SSR issues
-    const pdfParseModule = await import("pdf-parse");
-    const pdfParse = (pdfParseModule as any).default || pdfParseModule;
-    const data = await pdfParse(buffer);
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ buffer });
+    const text = result.value?.trim() || "(Dokumen Word kosong atau tidak dapat dibaca)";
     return {
       name: fileName,
-      content: data.text || "(PDF tidak dapat dibaca — kemungkinan file hasil scan)",
+      parts: [{ text: `\n=== DOKUMEN: ${fileName} ===\n${text}` }],
     };
   } catch {
     return {
       name: fileName,
-      content: "(Gagal memproses file PDF)",
+      parts: [{ text: `\n=== DOKUMEN: ${fileName} ===\n(Gagal memproses file DOCX)` }],
     };
   }
 }
@@ -32,37 +56,34 @@ function parseExcel(buffer: Buffer, fileName: string): ParsedFile {
 
     workbook.SheetNames.forEach((sheetName) => {
       const worksheet = workbook.Sheets[sheetName];
+      // Use sheet_to_json for richer data extraction, then format as readable text
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" }) as Record<string, unknown>[];
       const csvData = XLSX.utils.sheet_to_csv(worksheet);
       if (csvData.trim()) {
-        sheets.push(`=== Sheet: ${sheetName} ===\n${csvData}`);
+        // Include both CSV (for structure) and a note about row count
+        sheets.push(`--- Sheet: ${sheetName} (${jsonData.length} baris data) ---\n${csvData}`);
       }
     });
 
+    const content = sheets.join("\n\n") || "(File Excel kosong)";
     return {
       name: fileName,
-      content: sheets.join("\n\n") || "(File Excel kosong)",
+      parts: [{ text: `\n=== DOKUMEN: ${fileName} ===\n${content}` }],
     };
   } catch {
     return {
       name: fileName,
-      content: "(Gagal memproses file Excel)",
+      parts: [{ text: `\n=== DOKUMEN: ${fileName} ===\n(Gagal memproses file Excel)` }],
     };
   }
 }
 
-// ── CSV Parser ─────────────────────────────────────────────────────────────────
-function parseCsv(buffer: Buffer, fileName: string): ParsedFile {
+// ── CSV / Plain Text Parsers ───────────────────────────────────────────────────
+function parsePlainText(buffer: Buffer, fileName: string): ParsedFile {
+  const content = buffer.toString("utf-8");
   return {
     name: fileName,
-    content: buffer.toString("utf-8"),
-  };
-}
-
-// ── Plain Text Parser ──────────────────────────────────────────────────────────
-function parseText(buffer: Buffer, fileName: string): ParsedFile {
-  return {
-    name: fileName,
-    content: buffer.toString("utf-8"),
+    parts: [{ text: `\n=== DOKUMEN: ${fileName} ===\n${content}` }],
   };
 }
 
@@ -74,10 +95,28 @@ export async function parseFile(
 ): Promise<ParsedFile> {
   const ext = fileName.toLowerCase().split(".").pop();
 
+  // PDF — send as native inline data so Gemini can read tables, scanned text, etc.
   if (ext === "pdf" || mimeType === "application/pdf") {
-    return parsePdf(buffer, fileName);
+    return parseBinaryAsInlineData(buffer, fileName, "application/pdf");
   }
 
+  // Images — send as native inline data so Gemini Vision can read them
+  if (ext === "jpg" || ext === "jpeg" || mimeType === "image/jpeg") {
+    return parseBinaryAsInlineData(buffer, fileName, "image/jpeg");
+  }
+  if (ext === "png" || mimeType === "image/png") {
+    return parseBinaryAsInlineData(buffer, fileName, "image/png");
+  }
+
+  // Word Documents
+  if (
+    ext === "docx" ||
+    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    return parseDocx(buffer, fileName);
+  }
+
+  // Excel
   if (
     ext === "xlsx" ||
     ext === "xls" ||
@@ -87,20 +126,29 @@ export async function parseFile(
     return parseExcel(buffer, fileName);
   }
 
-  if (ext === "csv" || mimeType === "text/csv") {
-    return parseCsv(buffer, fileName);
-  }
-
-  // Default: treat as plain text
-  return parseText(buffer, fileName);
+  // CSV / TXT
+  return parsePlainText(buffer, fileName);
 }
 
-// ── Combine Multiple Files ─────────────────────────────────────────────────────
+// ── Combine Multiple Files into array of Parts ────────────────────────────────
+export function combineIntoParts(files: ParsedFile[]): Part[] {
+  const allParts: Part[] = [];
+  for (const file of files) {
+    allParts.push(...file.parts);
+  }
+  return allParts;
+}
+
+// Legacy helper for backward compat (no longer used by AI but kept for safety)
 export function combineExtractedText(files: ParsedFile[]): string {
   return files
     .map(
       (f) =>
-        `========================================\nDOKUMEN: ${f.name}\n========================================\n${f.content}`
+        `========================================\nDOKUMEN: ${f.name}\n========================================\n` +
+        f.parts
+          .filter((p) => "text" in p)
+          .map((p) => (p as { text: string }).text)
+          .join("\n")
     )
     .join("\n\n");
 }

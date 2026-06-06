@@ -141,6 +141,7 @@ Format Output JSON yang Wajib:
   ],
   "final_summary": {
     "overall_fraud_risk_score": "",
+    "overall_risk_percentage": 0,
     "key_red_flags": [],
     "priority_actions_for_management": [],
     "auditor_recommendation": "",
@@ -158,38 +159,75 @@ Instruksi Output:
 * Tanpa komentar tambahan
 * Jangan membuat asumsi tanpa bukti
 
-JSON harus bersih, terstruktur, dan siap digunakan langsung untuk response API.`;
+JSON harus bersih, terstruktur, dan siap digunakan langsung untuk response API.
+
+CATATAN PENTING TENTANG overall_risk_percentage:
+Kembalikan nilai integer antara 0-100 yang mencerminkan tingkat risiko fraud secara keseluruhan.
+Panduan:
+- 0-24: Risiko Rendah
+- 25-49: Risiko Sedang
+- 50-74: Risiko Tinggi
+- 75-100: Risiko Kritis`;
+
+import type { Part } from "@google/genai";
 
 let ai: GoogleGenAI;
 
-export async function analyzeDocuments(extractedText: string): Promise<AnalysisResult> {
+export async function analyzeDocuments(parts: Part[]): Promise<AnalysisResult> {
   if (!ai) {
     ai = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY || "dummy",
     });
   }
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.5-flash",
-    contents: `Berikut adalah data akuntansi / laporan keuangan yang perlu dianalisis:\n\n${extractedText}`,
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      temperature: 0.1,
-      responseMimeType: "application/json",
-    },
-  });
+  // Try models in order until one succeeds
+  const MODELS = [
+    "gemini-2.5-flash-preview-05-20",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+  ];
 
-  const content = response.text;
-  if (!content) {
-    throw new Error("AI did not return a response");
+  let lastError: Error | null = null;
+
+  for (const model of MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: "Berikut adalah data akuntansi / laporan keuangan yang perlu dianalisis:" },
+              ...parts,
+            ],
+          },
+        ],
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          temperature: 0.1,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const content = response.text;
+      if (!content) {
+        throw new Error("AI did not return a response");
+      }
+
+      // Strip possible markdown fences
+      const cleaned = content.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+      const parsed = JSON.parse(cleaned) as AnalysisResult;
+
+      if (!parsed.findings || !parsed.final_summary) {
+        throw new Error("AI response missing required fields");
+      }
+
+      return parsed;
+    } catch (err: any) {
+      console.warn(`[AI] Model ${model} failed:`, err?.message);
+      lastError = err;
+    }
   }
 
-  const parsed = JSON.parse(content) as AnalysisResult;
-
-  // Basic validation
-  if (!parsed.findings || !parsed.final_summary) {
-    throw new Error("AI response missing required fields");
-  }
-
-  return parsed;
+  throw lastError ?? new Error("All Gemini models failed");
 }

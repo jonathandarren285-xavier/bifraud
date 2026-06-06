@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useLanguage } from "@/components/providers/LanguageProvider";
-import { UploadCloud, X, FileText, FileSpreadsheet, File } from "lucide-react";
+import { UploadCloud, X, FileText, FileSpreadsheet, File, Image, FileType } from "lucide-react";
 
 const ACCEPTED_TYPES = {
   "application/pdf": [".pdf"],
@@ -11,6 +11,9 @@ const ACCEPTED_TYPES = {
   "application/vnd.ms-excel": [".xls"],
   "text/csv": [".csv"],
   "text/plain": [".txt"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
 };
 
 function FileIcon({ name }: { name: string }) {
@@ -18,6 +21,9 @@ function FileIcon({ name }: { name: string }) {
   if (ext === "pdf") return <File className="h-5 w-5 text-red-400" />;
   if (ext === "xlsx" || ext === "xls") return <FileSpreadsheet className="h-5 w-5 text-green-400" />;
   if (ext === "csv") return <FileSpreadsheet className="h-5 w-5 text-blue-400" />;
+  if (ext === "docx") return <FileType className="h-5 w-5 text-blue-300" />;
+  if (ext === "jpg" || ext === "jpeg" || ext === "png")
+    return <Image className="h-5 w-5 text-purple-400" />;
   return <FileText className="h-5 w-5 text-slate-400" />;
 }
 
@@ -78,9 +84,7 @@ export function UploadZone({ files, onFilesChange }: UploadZoneProps) {
         <div className="relative flex flex-col items-center gap-4">
           <div
             className={`flex h-16 w-16 items-center justify-center rounded-2xl transition-all duration-300 ${
-              isDragActive
-                ? "bg-amber-400/20 scale-110"
-                : "bg-white/10"
+              isDragActive ? "bg-amber-400/20 scale-110" : "bg-white/10"
             }`}
           >
             <UploadCloud
@@ -94,7 +98,9 @@ export function UploadZone({ files, onFilesChange }: UploadZoneProps) {
             <p className={`text-base sm:text-lg font-semibold transition-colors ${isDragActive ? "text-amber-400" : "text-white"}`}>
               {isDragActive ? t.dragActive : t.uploadDesc}
             </p>
-            <p className="mt-1 text-sm text-slate-400">{t.uploadFormats}</p>
+            <p className="mt-1 text-sm text-slate-400">
+              Format didukung: PDF, Excel (.xlsx), CSV, TXT, DOCX, JPG, PNG
+            </p>
             <p className="mt-0.5 text-xs text-slate-500">{t.uploadMultiple}</p>
           </div>
         </div>

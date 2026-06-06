@@ -57,7 +57,10 @@ export function ResultsDashboard({ result, fileNames }: ResultsDashboardProps) {
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">
               {t.overallRisk}
             </p>
-            <RiskScoreDisplay score={final_summary.overall_fraud_risk_score} />
+            <RiskScoreDisplay
+              score={final_summary.overall_fraud_risk_score}
+              percentage={final_summary.overall_risk_percentage}
+            />
           </div>
           <div className="flex gap-4 sm:gap-6 text-center">
             <div>

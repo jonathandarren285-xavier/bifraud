@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { parseFile, combineExtractedText } from "@/lib/parsers";
+import { parseFile, combineIntoParts } from "@/lib/parsers";
 import { analyzeDocuments } from "@/lib/ai";
 import { prisma } from "@/lib/db";
 
@@ -24,18 +24,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file types
-    const ALLOWED_EXTENSIONS = ["pdf", "xlsx", "xls", "csv", "txt"];
+    const ALLOWED_EXTENSIONS = ["pdf", "xlsx", "xls", "csv", "txt", "docx", "jpg", "jpeg", "png"];
     for (const file of files) {
       const ext = file.name.toLowerCase().split(".").pop();
       if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
         return NextResponse.json(
-          { error: `File type not supported: ${file.name}. Allowed: PDF, Excel, CSV, TXT` },
+          {
+            error: `File type not supported: ${file.name}. Allowed: PDF, Excel, CSV, TXT, DOCX, JPG, PNG`,
+          },
           { status: 400 }
         );
       }
     }
 
-    // Parse all files
+    // Parse all files into Gemini Parts
     const parsedFiles = await Promise.all(
       files.map(async (file) => {
         const buffer = Buffer.from(await file.arrayBuffer());
@@ -43,11 +45,17 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    // Combine into single prompt text
-    const combinedText = combineExtractedText(parsedFiles);
+    // Combine into a flat array of Gemini content parts
+    const parts = combineIntoParts(parsedFiles);
 
-    // Check if there's actually content to analyze
-    if (combinedText.trim().length < 50) {
+    // Safety check — ensure there is at least some content
+    const textContent = parts
+      .filter((p) => "text" in p)
+      .map((p) => (p as { text: string }).text)
+      .join("");
+    const hasInlineData = parts.some((p) => "inlineData" in p);
+
+    if (textContent.trim().length < 10 && !hasInlineData) {
       return NextResponse.json(
         { error: "Files appear to be empty or could not be read" },
         { status: 400 }
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call Gemini
-    const analysisResult = await analyzeDocuments(combinedText);
+    const analysisResult = await analyzeDocuments(parts);
 
     // Save to database
     const savedAnalysis = await prisma.analysis.create({
